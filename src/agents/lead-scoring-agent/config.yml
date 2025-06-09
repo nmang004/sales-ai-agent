@@ -1,0 +1,302 @@
+# Lead Scoring Agent Configuration
+
+agent:
+  id: "lead-scoring-agent"
+  name: "Lead Scoring Agent"
+  type: "DataAnalysisAgent"
+  category: "sales-intelligence"
+  version: "1.0.0"
+  description: "AI-powered lead scoring with multi-source data analysis"
+  
+runtime:
+  realtime: false
+  maxInstances: 10
+  memoryLimit: "512MB"
+  cpuLimit: "0.5"
+  
+tools:
+  - "claude-ai"
+  - "database"
+  - "enrichment"
+  - "scoring-calculation"
+
+triggers:
+  - "lead.created"
+  - "lead.updated"
+  - "enrichment.completed"
+  - "scoring.batch_requested"
+  - "scoring.model_updated"
+
+events_emitted:
+  - "lead.scored"
+  - "lead.high_value_detected"
+  - "scoring.batch_completed"
+  - "scoring.error"
+  - "insights.generated"
+
+performance_requirements:
+  response_time: "2s"
+  throughput: "1000/5min"
+  memory_usage: "<512MB"
+  cpu_usage: "<50%"
+  concurrent_requests: 100
+
+scoring_model:
+  weights:
+    firmographics: 0.25
+    technicalFit: 0.20
+    engagement: 0.20
+    timing: 0.15
+    decisionMakerAccess: 0.10
+    intentSignals: 0.10
+  
+  thresholds:
+    highValue: 90
+    qualified: 70
+    nurture: 40
+    
+  features:
+    firmographics:
+      companySize:
+        weight: 0.3
+        enterprise: 1.0
+        large: 0.8
+        medium: 0.6
+        small: 0.4
+        startup: 0.2
+      
+      industry:
+        weight: 0.25
+        technology: 1.0
+        finance: 0.9
+        healthcare: 0.8
+        manufacturing: 0.7
+        retail: 0.6
+        other: 0.5
+      
+      revenue:
+        weight: 0.25
+        ranges:
+          - min: 100000000  # $100M+
+            score: 1.0
+          - min: 50000000   # $50M+
+            score: 0.9
+          - min: 10000000   # $10M+
+            score: 0.8
+          - min: 1000000    # $1M+
+            score: 0.6
+          - min: 0
+            score: 0.3
+      
+      location:
+        weight: 0.1
+        north_america: 1.0
+        europe: 0.9
+        asia_pacific: 0.8
+        other: 0.6
+      
+      funding_stage:
+        weight: 0.1
+        ipo: 1.0
+        series_c: 0.9
+        series_b: 0.8
+        series_a: 0.7
+        seed: 0.5
+        bootstrap: 0.6
+
+    technical_fit:
+      technology_stack:
+        weight: 0.5
+        compatible_technologies:
+          - "React"
+          - "Node.js"
+          - "AWS"
+          - "Docker"
+          - "Kubernetes"
+        incompatible_technologies:
+          - "Legacy mainframe"
+          - "Proprietary systems"
+      
+      it_maturity:
+        weight: 0.3
+        cloud_adoption: 1.0
+        hybrid_cloud: 0.8
+        on_premise: 0.6
+        legacy: 0.3
+      
+      integration_complexity:
+        weight: 0.2
+        api_ready: 1.0
+        some_apis: 0.7
+        limited_apis: 0.4
+        no_apis: 0.1
+
+    engagement:
+      website_engagement:
+        weight: 0.3
+        multiple_visits: 1.0
+        return_visitor: 0.8
+        single_visit: 0.5
+        no_visits: 0.0
+      
+      email_engagement:
+        weight: 0.3
+        high_engagement: 1.0  # 50%+ open rate, clicks
+        medium_engagement: 0.7  # 25-50% open rate
+        low_engagement: 0.3   # <25% open rate
+        no_engagement: 0.0
+      
+      content_consumption:
+        weight: 0.2
+        downloads_whitepapers: 1.0
+        reads_blog_posts: 0.7
+        views_case_studies: 0.8
+        no_content: 0.0
+      
+      social_engagement:
+        weight: 0.2
+        active_social: 0.8
+        some_social: 0.5
+        no_social: 0.0
+
+    timing:
+      budget_cycle:
+        weight: 0.4
+        current_budget_cycle: 1.0
+        next_quarter: 0.8
+        next_year: 0.5
+        unknown: 0.3
+      
+      contract_expiration:
+        weight: 0.3
+        expiring_soon: 1.0  # Next 6 months
+        expiring_later: 0.6  # 6-12 months
+        long_term: 0.3    # 12+ months
+        no_contract: 0.5
+      
+      business_initiatives:
+        weight: 0.3
+        digital_transformation: 1.0
+        cost_reduction: 0.8
+        growth_initiatives: 0.9
+        maintenance_mode: 0.2
+
+    decision_maker_access:
+      contact_level:
+        weight: 0.4
+        c_level: 1.0
+        vp_level: 0.9
+        director: 0.7
+        manager: 0.5
+        individual: 0.2
+      
+      stakeholder_mapping:
+        weight: 0.3
+        complete_mapping: 1.0
+        partial_mapping: 0.7
+        limited_mapping: 0.4
+        no_mapping: 0.1
+      
+      champion_strength:
+        weight: 0.3
+        strong_champion: 1.0
+        moderate_champion: 0.7
+        weak_champion: 0.4
+        no_champion: 0.0
+
+    intent_signals:
+      search_behavior:
+        weight: 0.3
+        solution_keywords: 1.0
+        problem_keywords: 0.8
+        competitor_keywords: 0.6
+        general_keywords: 0.3
+      
+      competitor_research:
+        weight: 0.3
+        active_research: 1.0
+        some_research: 0.7
+        minimal_research: 0.4
+        no_research: 0.0
+      
+      pricing_interest:
+        weight: 0.4
+        pricing_page_visits: 1.0
+        roi_calculator: 0.9
+        demo_requests: 1.0
+        proposal_requests: 1.0
+
+performance:
+  batchSize: 50
+  maxConcurrentScoring: 10
+  cacheEnabled: true
+  cacheTTL: 3600  # 1 hour
+
+enrichment:
+  autoEnrich: true
+  providers:
+    clearbit:
+      enabled: true
+      priority: 1
+      timeout: 10000
+    linkedin:
+      enabled: true
+      priority: 2
+      timeout: 15000
+    news_api:
+      enabled: true
+      priority: 3
+      timeout: 5000
+
+claude_ai:
+  model: "claude-3-5-sonnet-20241022"
+  maxTokens: 2000
+  temperature: 0.3
+  caching:
+    enabled: true
+    ttl: 3600
+  rateLimiting:
+    requestsPerMinute: 50
+    tokensPerMinute: 100000
+
+database:
+  primary:
+    type: "postgresql"
+    connectionPool: 10
+    queryTimeout: 5000
+    retries: 3
+  
+  cache:
+    type: "redis"
+    ttl: 1800  # 30 minutes
+    maxSize: 1000
+
+monitoring:
+  metrics:
+    - "scoring_latency"
+    - "scoring_accuracy"
+    - "enrichment_success_rate"
+    - "cache_hit_rate"
+    - "error_rate"
+  
+  alerts:
+    - condition: "scoring_latency > 5s"
+      severity: "warning"
+    - condition: "error_rate > 0.05"
+      severity: "critical"
+    - condition: "enrichment_success_rate < 0.8"
+      severity: "warning"
+
+logging:
+  level: "info"
+  includeMetadata: true
+  sensitiveFields:
+    - "email"
+    - "phone"
+    - "personal_data"
+
+security:
+  dataRetention: "90d"
+  encryption: true
+  accessControl: "rbac"
+  auditLogging: true

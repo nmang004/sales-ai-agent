@@ -1,0 +1,239 @@
+voltagent:
+  version: "2.1.0"
+  project_name: "sales-ai-agent"
+  description: "Enterprise-grade Sales AI Agent platform with multi-agent orchestration"
+  
+runtime:
+  node_version: "18+"
+  typescript: true
+  event_bus: "redis"
+  state_management: "postgresql"
+  real_time: true
+  
+agents:
+  lead-scoring-agent:
+    name: "lead-scoring-agent"
+    type: "DataAnalysisAgent"
+    category: "sales-intelligence"
+    version: "1.0.0"
+    description: "AI-powered lead scoring with multi-source data analysis"
+    realtime: false
+    max_instances: 10
+    memory_limit: "512MB"
+    cpu_limit: "0.5"
+    tools:
+      - "database"
+      - "claude-ai" 
+      - "data-enrichment"
+      - "scoring-calculation"
+    triggers:
+      - "lead.created"
+      - "lead.updated"
+      - "enrichment.completed"
+      - "scoring.batch_requested"
+      - "scoring.model_updated"
+    events_emitted:
+      - "lead.scored"
+      - "lead.high_value_detected"
+      - "scoring.batch_completed"
+      - "scoring.error"
+      - "insights.generated"
+    performance_requirements:
+      response_time: "2s"
+      throughput: "1000/5min"
+      memory_usage: "<512MB"
+      cpu_usage: "<50%"
+      
+  conversation-agent:
+    name: "conversation-agent"
+    type: "RealTimeAnalysisAgent"
+    category: "conversation-intelligence"
+    version: "1.0.0"
+    description: "Live conversation analysis and coaching for sales calls"
+    realtime: true
+    max_instances: 20
+    memory_limit: "1GB"
+    cpu_limit: "1.0"
+    tools:
+      - "audio-processing"
+      - "transcription"
+      - "claude-coaching"
+      - "websockets"
+      - "conversation-analytics"
+    triggers:
+      - "call.started"
+      - "audio.chunk_received"
+      - "transcription.completed"
+      - "call.ended"
+      - "coaching.requested"
+    events_emitted:
+      - "transcription.live_update"
+      - "coaching.suggestion_generated"
+      - "sentiment.changed"
+      - "objection.detected"
+      - "buying_signal.detected"
+      - "call.analysis_completed"
+    performance_requirements:
+      response_time: "200ms"
+      throughput: "50_concurrent"
+      memory_usage: "<100MB_per_session"
+      
+  email-agent:
+    name: "email-agent"
+    type: "AutomationAgent"
+    category: "marketing-automation"
+    version: "1.0.0"
+    description: "Intelligent email sequence automation with AI personalization"
+    realtime: false
+    max_instances: 8
+    memory_limit: "768MB"
+    cpu_limit: "0.7"
+    tools:
+      - "email-service"
+      - "personalization"
+      - "sequence-management"
+      - "response-analysis"
+      - "performance-tracking"
+    triggers:
+      - "sequence.enroll"
+      - "sequence.step_due"
+      - "email.response_received"
+      - "email.bounced"
+      - "email.opened"
+      - "sequence.optimize_requested"
+    events_emitted:
+      - "email.sent"
+      - "email.personalized"
+      - "response.analyzed"
+      - "sequence.completed"
+      - "engagement.high"
+      - "sequence.optimized"
+    performance_requirements:
+      response_time: "15s"
+      throughput: "10000_concurrent_sequences"
+      
+  forecasting-agent:
+    name: "forecasting-agent"
+    type: "PredictiveAnalyticsAgent"
+    category: "business-intelligence"
+    version: "1.0.0"
+    description: "AI-powered sales forecasting and pipeline intelligence"
+    realtime: false
+    max_instances: 5
+    memory_limit: "2GB"
+    cpu_limit: "2.0"
+    tools:
+      - "ml-models"
+      - "claude-insights"
+      - "data-analysis"
+      - "pipeline-intelligence"
+    triggers:
+      - "deal.created"
+      - "deal.updated"
+      - "forecast.requested"
+      - "pipeline.analysis_requested"
+      - "risk.assessment_requested"
+      - "model.retrain_scheduled"
+    events_emitted:
+      - "deal.prediction_updated"
+      - "forecast.generated"
+      - "risk.identified"
+      - "opportunity.acceleration_suggested"
+      - "pipeline.health_alert"
+      - "model.performance_updated"
+    performance_requirements:
+      response_time: "30s"
+      throughput: "1000_deals_batch"
+
+workflows:
+  lead-to-opportunity:
+    name: "lead-to-opportunity"
+    description: "Complete lead qualification and nurturing workflow"
+    agents:
+      - "lead-scoring-agent"
+      - "email-agent"
+      - "forecasting-agent"
+    triggers:
+      - "lead.created"
+    mode: "sequential_with_branching"
+    
+  real-time-coaching:
+    name: "real-time-coaching"
+    description: "Live sales call coaching and analysis"
+    agents:
+      - "conversation-agent"
+    triggers:
+      - "call.started"
+    mode: "real_time_streaming"
+    
+  pipeline-intelligence:
+    name: "pipeline-intelligence"
+    description: "Comprehensive sales forecasting and analytics"
+    agents:
+      - "forecasting-agent"
+      - "lead-scoring-agent"
+    triggers:
+      - "forecast.requested"
+      - "pipeline.health_check"
+    mode: "parallel_aggregation"
+
+tools:
+  claude-ai:
+    provider: "anthropic"
+    model: "claude-3-5-sonnet-20241022"
+    max_tokens: 2000
+    temperature: 0.3
+    caching: true
+    rate_limiting: true
+    
+  database:
+    type: "postgresql"
+    host: "${DB_HOST}"
+    port: 5432
+    database: "${DB_NAME}"
+    username: "${DB_USER}"
+    password: "${DB_PASSWORD}"
+    connection_pool: 10
+    query_timeout: 5000
+    
+  redis:
+    host: "${REDIS_HOST}"
+    port: 6379
+    password: "${REDIS_PASSWORD}"
+    db: 0
+    
+  websockets:
+    max_connections: 1000
+    heartbeat_interval: 30000
+    message_compression: true
+    authentication_required: true
+
+monitoring:
+  enabled: true
+  metrics:
+    - "agent_response_times"
+    - "workflow_completion_rates"
+    - "error_rates"
+    - "resource_utilization"
+    - "business_kpis"
+  alerting:
+    - "agent_failures"
+    - "performance_degradation"
+    - "high_error_rates"
+    - "resource_exhaustion"
+    
+security:
+  authentication: "jwt"
+  authorization: "rbac"
+  encryption: "aes-256"
+  network_policies: true
+  secrets_management: "vault"
+  
+scaling:
+  auto_scaling: true
+  min_replicas: 1
+  max_replicas: 50
+  target_cpu: 70
+  target_memory: 80
+  scale_up_threshold: "queue_depth > 100"
+  scale_down_threshold: "queue_depth < 10"

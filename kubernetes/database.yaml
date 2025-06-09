@@ -1,0 +1,426 @@
+# PostgreSQL Database Deployment and Service
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: sales-ai-platform
+spec:
+  serviceName: postgres-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/component: database
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: POSTGRES_PASSWORD
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: postgres-init
+          mountPath: /docker-entrypoint-initdb.d
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - $(POSTGRES_USER)
+            - -d
+            - $(POSTGRES_DB)
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - $(POSTGRES_USER)
+            - -d
+            - $(POSTGRES_DB)
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: postgres-init
+        configMap:
+          name: postgres-init-scripts
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 20Gi
+      storageClassName: fast-ssd
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+    name: postgres
+  selector:
+    app.kubernetes.io/name: postgres
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: database
+data:
+  init-db.sql: |
+    -- Initialize Sales AI Agent Database
+    
+    -- Create extensions
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+    
+    -- Create database schema
+    CREATE SCHEMA IF NOT EXISTS sales_ai;
+    
+    -- Set default search path
+    ALTER DATABASE sales_ai_agent SET search_path TO sales_ai, public;
+    
+    -- Create tables for leads
+    CREATE TABLE IF NOT EXISTS sales_ai.leads (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        company VARCHAR(255),
+        title VARCHAR(255),
+        phone VARCHAR(50),
+        industry VARCHAR(100),
+        company_size VARCHAR(50),
+        lead_score INTEGER DEFAULT 0,
+        status VARCHAR(50) DEFAULT 'new',
+        source VARCHAR(100),
+        tags JSONB DEFAULT '[]',
+        custom_fields JSONB DEFAULT '{}',
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create tables for deals
+    CREATE TABLE IF NOT EXISTS sales_ai.deals (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        lead_id UUID REFERENCES sales_ai.leads(id),
+        title VARCHAR(255) NOT NULL,
+        value DECIMAL(15,2),
+        stage VARCHAR(100) DEFAULT 'prospecting',
+        probability DECIMAL(5,2) DEFAULT 0.0,
+        expected_close_date DATE,
+        assigned_to VARCHAR(255),
+        source VARCHAR(100),
+        notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create tables for conversations
+    CREATE TABLE IF NOT EXISTS sales_ai.conversations (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        lead_id UUID REFERENCES sales_ai.leads(id),
+        deal_id UUID REFERENCES sales_ai.deals(id),
+        type VARCHAR(50) NOT NULL, -- 'call', 'email', 'meeting'
+        direction VARCHAR(20) NOT NULL, -- 'inbound', 'outbound'
+        duration INTEGER, -- seconds for calls
+        transcript TEXT,
+        summary TEXT,
+        sentiment_score DECIMAL(5,2),
+        key_topics JSONB DEFAULT '[]',
+        action_items JSONB DEFAULT '[]',
+        recorded_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create tables for email campaigns
+    CREATE TABLE IF NOT EXISTS sales_ai.email_campaigns (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        name VARCHAR(255) NOT NULL,
+        type VARCHAR(100) DEFAULT 'sequence',
+        status VARCHAR(50) DEFAULT 'draft',
+        template_data JSONB DEFAULT '{}',
+        targeting_criteria JSONB DEFAULT '{}',
+        schedule_config JSONB DEFAULT '{}',
+        created_by VARCHAR(255),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create tables for email events
+    CREATE TABLE IF NOT EXISTS sales_ai.email_events (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        campaign_id UUID REFERENCES sales_ai.email_campaigns(id),
+        lead_id UUID REFERENCES sales_ai.leads(id),
+        event_type VARCHAR(50) NOT NULL, -- 'sent', 'delivered', 'opened', 'clicked', 'replied'
+        email_address VARCHAR(255),
+        subject VARCHAR(500),
+        metadata JSONB DEFAULT '{}',
+        occurred_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create tables for forecasts
+    CREATE TABLE IF NOT EXISTS sales_ai.forecasts (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        forecast_type VARCHAR(100) NOT NULL, -- 'revenue', 'deal_probability', 'pipeline_velocity'
+        time_period VARCHAR(50) NOT NULL, -- 'weekly', 'monthly', 'quarterly'
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        predicted_value DECIMAL(15,2),
+        confidence_score DECIMAL(5,2),
+        model_version VARCHAR(50),
+        input_data JSONB DEFAULT '{}',
+        generated_by VARCHAR(255),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create tables for workflows
+    CREATE TABLE IF NOT EXISTS sales_ai.workflow_executions (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        workflow_id VARCHAR(255) NOT NULL,
+        status VARCHAR(50) DEFAULT 'running',
+        context_data JSONB DEFAULT '{}',
+        step_results JSONB DEFAULT '{}',
+        error_details JSONB DEFAULT '{}',
+        started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP WITH TIME ZONE,
+        triggered_by VARCHAR(255)
+    );
+    
+    -- Create tables for audit logs
+    CREATE TABLE IF NOT EXISTS sales_ai.audit_logs (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id VARCHAR(255),
+        action VARCHAR(255) NOT NULL,
+        resource VARCHAR(255) NOT NULL,
+        resource_id VARCHAR(255),
+        ip_address INET,
+        user_agent TEXT,
+        details JSONB DEFAULT '{}',
+        success BOOLEAN DEFAULT true,
+        occurred_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    -- Create indexes for performance
+    CREATE INDEX IF NOT EXISTS idx_leads_email ON sales_ai.leads(email);
+    CREATE INDEX IF NOT EXISTS idx_leads_score ON sales_ai.leads(lead_score DESC);
+    CREATE INDEX IF NOT EXISTS idx_leads_status ON sales_ai.leads(status);
+    CREATE INDEX IF NOT EXISTS idx_leads_created ON sales_ai.leads(created_at DESC);
+    
+    CREATE INDEX IF NOT EXISTS idx_deals_lead_id ON sales_ai.deals(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_deals_stage ON sales_ai.deals(stage);
+    CREATE INDEX IF NOT EXISTS idx_deals_value ON sales_ai.deals(value DESC);
+    CREATE INDEX IF NOT EXISTS idx_deals_close_date ON sales_ai.deals(expected_close_date);
+    
+    CREATE INDEX IF NOT EXISTS idx_conversations_lead_id ON sales_ai.conversations(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_conversations_deal_id ON sales_ai.conversations(deal_id);
+    CREATE INDEX IF NOT EXISTS idx_conversations_type ON sales_ai.conversations(type);
+    CREATE INDEX IF NOT EXISTS idx_conversations_recorded ON sales_ai.conversations(recorded_at DESC);
+    
+    CREATE INDEX IF NOT EXISTS idx_email_events_campaign_id ON sales_ai.email_events(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_email_events_lead_id ON sales_ai.email_events(lead_id);
+    CREATE INDEX IF NOT EXISTS idx_email_events_type ON sales_ai.email_events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_email_events_occurred ON sales_ai.email_events(occurred_at DESC);
+    
+    CREATE INDEX IF NOT EXISTS idx_forecasts_type ON sales_ai.forecasts(forecast_type);
+    CREATE INDEX IF NOT EXISTS idx_forecasts_period ON sales_ai.forecasts(time_period);
+    CREATE INDEX IF NOT EXISTS idx_forecasts_dates ON sales_ai.forecasts(start_date, end_date);
+    
+    CREATE INDEX IF NOT EXISTS idx_workflow_executions_workflow_id ON sales_ai.workflow_executions(workflow_id);
+    CREATE INDEX IF NOT EXISTS idx_workflow_executions_status ON sales_ai.workflow_executions(status);
+    CREATE INDEX IF NOT EXISTS idx_workflow_executions_started ON sales_ai.workflow_executions(started_at DESC);
+    
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON sales_ai.audit_logs(user_id);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON sales_ai.audit_logs(action);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON sales_ai.audit_logs(resource);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_occurred ON sales_ai.audit_logs(occurred_at DESC);
+    
+    -- Create update triggers
+    CREATE OR REPLACE FUNCTION sales_ai.update_updated_at_column()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        NEW.updated_at = CURRENT_TIMESTAMP;
+        RETURN NEW;
+    END;
+    $$ language 'plpgsql';
+    
+    CREATE TRIGGER update_leads_updated_at 
+        BEFORE UPDATE ON sales_ai.leads 
+        FOR EACH ROW EXECUTE FUNCTION sales_ai.update_updated_at_column();
+    
+    CREATE TRIGGER update_deals_updated_at 
+        BEFORE UPDATE ON sales_ai.deals 
+        FOR EACH ROW EXECUTE FUNCTION sales_ai.update_updated_at_column();
+    
+    CREATE TRIGGER update_email_campaigns_updated_at 
+        BEFORE UPDATE ON sales_ai.email_campaigns 
+        FOR EACH ROW EXECUTE FUNCTION sales_ai.update_updated_at_column();
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: sales-ai-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/component: cache
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+          name: redis
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: REDIS_PASSWORD
+        command:
+        - redis-server
+        - --requirepass
+        - $(REDIS_PASSWORD)
+        - --appendonly
+        - "yes"
+        - --maxmemory
+        - "1gb"
+        - --maxmemory-policy
+        - "allkeys-lru"
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
+spec:
+  type: ClusterIP
+  ports:
+  - port: 6379
+    targetPort: 6379
+    protocol: TCP
+    name: redis
+  selector:
+    app.kubernetes.io/name: redis
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: fast-ssd

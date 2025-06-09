@@ -1,0 +1,577 @@
+# Main Sales AI Agent Server Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sales-ai-server
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: sales-ai-server
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: sales-ai-platform
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sales-ai-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sales-ai-server
+        app.kubernetes.io/component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: sales-ai-server
+        image: sales-ai-agent:latest
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: NODE_ENV
+        - name: PORT
+          value: "3000"
+        - name: DATABASE_URL
+          value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
+        - name: REDIS_URL
+          value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)"
+        - name: POSTGRES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: POSTGRES_HOST
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: POSTGRES_PORT
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: POSTGRES_PASSWORD
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: REDIS_PORT
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: REDIS_PASSWORD
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: ANTHROPIC_API_KEY
+        - name: SENDGRID_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: SENDGRID_API_KEY
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: JWT_SECRET
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: ENCRYPTION_KEY
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: LOG_LEVEL
+        - name: ENABLE_METRICS
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: ENABLE_METRICS
+        - name: ENABLE_HEALTH_CHECKS
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: ENABLE_HEALTH_CHECKS
+        - name: ENABLE_AUTO_SCALING
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: ENABLE_AUTO_SCALING
+        - name: ENABLE_SECURITY_MONITORING
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: ENABLE_SECURITY_MONITORING
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: uploads
+          mountPath: /app/uploads
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: uploads-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sales-ai-server-service
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: sales-ai-server
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: sales-ai-server
+
+---
+# Lead Scoring Agent Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lead-scoring-agent
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: lead-scoring-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: sales-ai-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lead-scoring-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lead-scoring-agent
+        app.kubernetes.io/component: agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: lead-scoring-agent
+        image: sales-ai-agent-agent:latest
+        env:
+        - name: AGENT_TYPE
+          value: "lead-scoring"
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: NODE_ENV
+        - name: DATABASE_URL
+          value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
+        - name: REDIS_URL
+          value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)"
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: ANTHROPIC_API_KEY
+        - name: CLEARBIT_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: CLEARBIT_API_KEY
+        - name: MAX_CONCURRENT_JOBS
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: MAX_CONCURRENT_JOBS
+        # Include other environment variables from configmap and secrets
+        envFrom:
+        - configMapRef:
+            name: sales-ai-config
+        - secretRef:
+            name: sales-ai-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lead-scoring-agent-service
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: lead-scoring-agent
+    app.kubernetes.io/component: agent
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: lead-scoring-agent
+
+---
+# Conversation Agent Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conversation-agent
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: conversation-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: sales-ai-platform
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: conversation-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: conversation-agent
+        app.kubernetes.io/component: agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: conversation-agent
+        image: sales-ai-agent-agent:latest
+        ports:
+        - containerPort: 3000
+          name: http
+        - containerPort: 3001
+          name: websocket
+        env:
+        - name: AGENT_TYPE
+          value: "conversation"
+        - name: WEBSOCKET_PORT
+          value: "3001"
+        - name: MAX_CONCURRENT_CALLS
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: MAX_CONCURRENT_CALLS
+        - name: DEEPGRAM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: sales-ai-secrets
+              key: DEEPGRAM_API_KEY
+        envFrom:
+        - configMapRef:
+            name: sales-ai-config
+        - secretRef:
+            name: sales-ai-secrets
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conversation-agent-service
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: conversation-agent
+    app.kubernetes.io/component: agent
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  - port: 3001
+    targetPort: 3001
+    protocol: TCP
+    name: websocket
+  selector:
+    app.kubernetes.io/name: conversation-agent
+
+---
+# Email Agent Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-agent
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: email-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: sales-ai-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: email-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: email-agent
+        app.kubernetes.io/component: agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: email-agent
+        image: sales-ai-agent-agent:latest
+        env:
+        - name: AGENT_TYPE
+          value: "email"
+        - name: MAX_CONCURRENT_EMAILS
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: MAX_CONCURRENT_EMAILS
+        envFrom:
+        - configMapRef:
+            name: sales-ai-config
+        - secretRef:
+            name: sales-ai-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: email-agent-service
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: email-agent
+    app.kubernetes.io/component: agent
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: email-agent
+
+---
+# Forecasting Agent Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forecasting-agent
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: forecasting-agent
+    app.kubernetes.io/component: agent
+    app.kubernetes.io/part-of: sales-ai-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forecasting-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: forecasting-agent
+        app.kubernetes.io/component: agent
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: forecasting-agent
+        image: sales-ai-agent-agent:latest
+        env:
+        - name: AGENT_TYPE
+          value: "forecasting"
+        - name: ENABLE_ML_MODELS
+          value: "true"
+        - name: PREDICTION_CACHE_TTL
+          valueFrom:
+            configMapKeyRef:
+              name: sales-ai-config
+              key: PREDICTION_CACHE_TTL
+        envFrom:
+        - configMapRef:
+            name: sales-ai-config
+        - secretRef:
+            name: sales-ai-secrets
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 3000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: forecasting-agent-service
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: forecasting-agent
+    app.kubernetes.io/component: agent
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app.kubernetes.io/name: forecasting-agent
+
+---
+# Persistent Volume Claim for uploads
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uploads-pvc
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: sales-ai-server
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: fast-ssd

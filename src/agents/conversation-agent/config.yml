@@ -1,0 +1,318 @@
+# Conversation Agent Configuration
+
+agent:
+  id: "conversation-agent"
+  name: "Conversation Agent"
+  type: "RealTimeAnalysisAgent"
+  category: "conversation-intelligence"
+  version: "1.0.0"
+  description: "Live conversation analysis and coaching for sales calls"
+  
+runtime:
+  realtime: true
+  maxInstances: 20
+  memoryLimit: "1GB"
+  cpuLimit: "1.0"
+  
+tools:
+  - "audio-processing"
+  - "transcription"
+  - "claude-coaching"
+  - "websockets"
+  - "conversation-analytics"
+
+triggers:
+  - "call.started"
+  - "audio.chunk_received"
+  - "transcription.completed"
+  - "call.ended"
+  - "coaching.requested"
+
+events_emitted:
+  - "transcription.live_update"
+  - "coaching.suggestion_generated"
+  - "sentiment.changed"
+  - "objection.detected"
+  - "buying_signal.detected"
+  - "call.analysis_completed"
+
+performance_requirements:
+  response_time: "200ms"
+  throughput: "50_concurrent"
+  memory_usage: "<100MB_per_session"
+  audio_latency: "<200ms"
+  coaching_latency: "<500ms"
+
+audio_processing:
+  sampleRate: 16000
+  channels: "mono"
+  chunkSize: 3000  # 3 seconds
+  qualityEnhancement: true
+  noiseReduction: true
+  supportedFormats:
+    - "webm"
+    - "mp3"
+    - "wav"
+    - "ogg"
+  
+  enhancement:
+    noiseGate: true
+    compressor: true
+    normalizer: true
+    highPassFilter: 80  # Hz
+    lowPassFilter: 8000  # Hz
+
+transcription:
+  provider: "deepgram"
+  model: "nova-2"
+  language: "en-US"
+  realTime: true
+  speakerDiarization: true
+  punctuation: true
+  confidenceThreshold: 0.7
+  
+  deepgram:
+    apiKey: "${DEEPGRAM_API_KEY}"
+    features:
+      - "punctuation"
+      - "diarize"
+      - "ner"  # Named entity recognition
+      - "sentiment"
+      - "summarize"
+    
+  whisper:
+    model: "whisper-large-v3"
+    temperature: 0.0
+    
+  azure:
+    subscriptionKey: "${AZURE_SPEECH_KEY}"
+    region: "${AZURE_SPEECH_REGION}"
+
+coaching:
+  enableRealTimeCoaching: true
+  maxSuggestionsPerMinute: 3
+  priorityThresholds:
+    urgent: 0.9
+    high: 0.7
+    medium: 0.5
+    low: 0.3
+  
+  coachingTypes:
+    - "talk_time"
+    - "objection_handling"
+    - "buying_signal"
+    - "competitor_mention"
+    - "question_opportunity"
+    - "value_proposition"
+    - "silence_alert"
+  
+  triggers:
+    talk_time:
+      threshold: 0.7  # 70% talk time ratio
+      window: 120     # 2 minutes
+      priority: "high"
+      
+    objection:
+      keywords:
+        - "too expensive"
+        - "no budget"
+        - "not interested"
+        - "current solution"
+        - "competitor"
+      priority: "urgent"
+      
+    buying_signals:
+      keywords:
+        - "when can we start"
+        - "how much does it cost"
+        - "what's the timeline"
+        - "implementation"
+        - "contract"
+        - "pricing"
+      priority: "high"
+      
+    competitor_mentions:
+      competitors:
+        - "salesforce"
+        - "hubspot"
+        - "pipedrive"
+        - "zoho"
+      priority: "medium"
+      
+    silence_alert:
+      threshold: 10000  # 10 seconds
+      priority: "medium"
+      
+    question_opportunities:
+      patterns:
+        - "we currently use"
+        - "our biggest challenge"
+        - "we're looking for"
+        - "decision process"
+      priority: "medium"
+
+websockets:
+  maxConnections: 1000
+  heartbeatInterval: 30000
+  messageCompression: true
+  authenticationRequired: true
+  
+  messageTypes:
+    - "coaching_tip"
+    - "transcript_update"
+    - "sentiment_change"
+    - "session_status"
+    - "metrics_update"
+  
+  rateLimiting:
+    messagesPerSecond: 10
+    maxQueueSize: 100
+
+analytics:
+  sentimentAnalysis: true
+  keywordDetection: true
+  engagementScoring: true
+  performanceBenchmarking: true
+  
+  sentiment:
+    provider: "claude"  # or "deepgram", "azure"
+    updateInterval: 1000  # 1 second
+    smoothingWindow: 5
+    
+  keywords:
+    trackingCategories:
+      - "product_features"
+      - "pain_points"
+      - "competitors"
+      - "budget_terms"
+      - "timeline_terms"
+      - "decision_makers"
+    
+    customKeywords:
+      pain_points:
+        - "frustrated"
+        - "difficult"
+        - "time consuming"
+        - "expensive"
+        - "complicated"
+      
+      buying_signals:
+        - "budget approved"
+        - "decision made"
+        - "move forward"
+        - "next steps"
+        - "sign contract"
+  
+  engagement:
+    metrics:
+      - "talk_time_ratio"
+      - "question_frequency"
+      - "response_time"
+      - "interruption_count"
+      - "sentiment_stability"
+    
+    benchmarks:
+      optimal_talk_time: 0.3  # 30% for sales rep
+      questions_per_minute: 1.5
+      avg_response_time: 3000  # 3 seconds
+
+performance:
+  maxConcurrentSessions: 50
+  audioLatencyTarget: 200   # milliseconds
+  coachingLatencyTarget: 500  # milliseconds
+  sessionTimeout: 7200000   # 2 hours
+  
+  audio_buffer:
+    maxSize: 1000000  # 1MB
+    flushInterval: 1000  # 1 second
+    
+  memory_management:
+    transcriptBufferSize: 100
+    coachingHistorySize: 50
+    metricsHistorySize: 200
+
+claude_coaching:
+  model: "claude-3-5-sonnet-20241022"
+  maxTokens: 1000
+  temperature: 0.3
+  streamResponses: true
+  contextWindow: "large"
+  
+  caching:
+    enabled: true
+    ttl: 300  # 5 minutes
+    
+  prompts:
+    objection_handling: |
+      The prospect just raised this concern: '{objection_text}'
+      Provide a specific response framework:
+      1. Acknowledge their concern
+      2. Ask a clarifying question
+      3. Reframe with value proposition
+      
+    competitor_response: |
+      Prospect mentioned competitor: '{competitor_name}'
+      Generate talking points for differentiation:
+      1. Acknowledge their consideration
+      2. Ask about their experience/concerns
+      3. Highlight our unique advantages
+      
+    buying_signal_coaching: |
+      Strong buying signal detected: '{signal_text}'
+      Provide next steps coaching:
+      1. Immediate follow-up questions
+      2. Process advancement strategies
+      3. Closing techniques
+
+session_management:
+  cleanupInterval: 300000   # 5 minutes
+  maxSessionAge: 7200000    # 2 hours
+  archiveCompletedSessions: true
+  sessionRecovery: true
+  
+  storage:
+    provider: "postgresql"
+    encryption: true
+    retention: "90d"
+    
+  backup:
+    enabled: true
+    interval: "1h"
+    location: "${BACKUP_STORAGE_PATH}"
+
+monitoring:
+  metrics:
+    - "session_count"
+    - "audio_latency"
+    - "coaching_response_time"
+    - "transcription_accuracy"
+    - "sentiment_detection_rate"
+    - "websocket_connections"
+    - "error_rate"
+  
+  alerts:
+    - condition: "audio_latency > 500ms"
+      severity: "warning"
+    - condition: "coaching_response_time > 1s"
+      severity: "warning"
+    - condition: "error_rate > 0.05"
+      severity: "critical"
+    - condition: "session_count > 45"
+      severity: "warning"
+
+logging:
+  level: "info"
+  includeAudioMetadata: true
+  includeTranscriptionData: false  # Privacy
+  sensitiveFields:
+    - "transcript_content"
+    - "participant_names"
+    - "audio_data"
+
+security:
+  audioDataRetention: "24h"
+  transcriptRetention: "30d"
+  encryption: "aes-256"
+  accessControl: "rbac"
+  auditLogging: true
+  gdprCompliant: true

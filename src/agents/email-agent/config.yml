@@ -1,0 +1,376 @@
+# Email Agent Configuration
+
+agent:
+  id: "email-agent"
+  name: "Email Agent"
+  type: "SequenceAutomationAgent"
+  category: "sales-automation"
+  version: "1.0.0"
+  description: "Intelligent email sequence automation with AI personalization"
+  
+runtime:
+  realtime: true
+  maxInstances: 15
+  memoryLimit: "1GB"
+  cpuLimit: "0.8"
+  
+tools:
+  - "claude-personalization"
+  - "email-delivery"
+  - "sequence-manager"
+  - "performance-optimizer"
+  - "response-detector"
+
+triggers:
+  - "lead.scored"
+  - "deal.stage_changed"
+  - "sequence.trigger"
+  - "email.delivered"
+  - "email.opened"
+  - "email.clicked"
+  - "email.replied"
+  - "email.unsubscribed"
+
+events_emitted:
+  - "sequence.created"
+  - "sequence.paused"
+  - "sequence.resumed"
+  - "sequence.completed"
+  - "email.sent"
+  - "lead.reply_received"
+  - "lead.unsubscribed"
+  - "performance.alert"
+
+performance_requirements:
+  response_time: "1s"
+  throughput: "2000/5min"
+  memory_usage: "<1GB"
+  cpu_usage: "<80%"
+  concurrent_sequences: 500
+
+sequence_automation:
+  maxSequencesPerLead: 3
+  defaultDelayBetweenEmails: 86400000  # 24 hours in ms
+  sendTimeOptimization: true
+  autoPersonalization: true
+  responseDetection: true
+  
+  triggers:
+    lead_score_thresholds:
+      high_value: 90  # Auto-trigger high-value sequence
+      qualified: 70   # Auto-trigger nurture sequence
+      cold: 40        # Auto-trigger education sequence
+    
+    deal_stage_triggers:
+      - stage: "discovery"
+        sequence: "discovery-support-sequence"
+      - stage: "proposal"
+        sequence: "proposal-follow-up-sequence"
+      - stage: "negotiation"
+        sequence: "closing-sequence"
+    
+    behavioral_triggers:
+      website_visit:
+        pages: ["pricing", "demo", "contact"]
+        sequence: "high-intent-sequence"
+      content_download:
+        types: ["whitepaper", "case-study", "demo"]
+        sequence: "content-follow-up-sequence"
+      email_engagement:
+        clicks: 3
+        opens: 5
+        sequence: "highly-engaged-sequence"
+
+email_delivery:
+  provider: "sendgrid"  # sendgrid, mailgun, aws-ses
+  rateLimit: 100        # emails per minute
+  batchSize: 50         # emails per batch
+  warmupMode: true      # gradual sending increase for new domains
+  
+  sendgrid:
+    apiKey: "${SENDGRID_API_KEY}"
+    fromEmail: "${DEFAULT_FROM_EMAIL}"
+    fromName: "${DEFAULT_FROM_NAME}"
+    replyTo: "${DEFAULT_REPLY_TO}"
+    webhookUrl: "${SENDGRID_WEBHOOK_URL}"
+    ipPoolName: "sales_outreach"
+    
+  mailgun:
+    apiKey: "${MAILGUN_API_KEY}"
+    domain: "${MAILGUN_DOMAIN}"
+    region: "us"  # us, eu
+    
+  aws_ses:
+    accessKeyId: "${AWS_ACCESS_KEY_ID}"
+    secretAccessKey: "${AWS_SECRET_ACCESS_KEY}"
+    region: "${AWS_SES_REGION}"
+    
+  deliverability:
+    dkimEnabled: true
+    spfEnabled: true
+    dmarcEnabled: true
+    trackingDomain: "${EMAIL_TRACKING_DOMAIN}"
+    unsubscribeLink: true
+    listUnsubscribeHeader: true
+
+personalization:
+  aiPersonalization: true
+  dynamicContentBlocks: true
+  imagePersonalization: false  # Advanced feature
+  industrySpecificContent: true
+  
+  content_blocks:
+    industry_pain_points:
+      technology: "Legacy system integration challenges"
+      finance: "Regulatory compliance and security concerns"
+      healthcare: "Patient data management and HIPAA compliance"
+      manufacturing: "Supply chain optimization and cost reduction"
+      retail: "Customer experience and inventory management"
+    
+    value_propositions:
+      cost_savings: "Reduce operational costs by up to 30%"
+      efficiency: "Increase team productivity by 50%"
+      security: "Enterprise-grade security and compliance"
+      scalability: "Scale seamlessly as your business grows"
+      integration: "Seamless integration with existing tools"
+    
+    social_proof:
+      by_industry:
+        technology: "Join 500+ tech companies using our solution"
+        finance: "Trusted by Fortune 500 financial institutions"
+        healthcare: "HIPAA-compliant solution used by 200+ hospitals"
+      
+      by_company_size:
+        startup: "Perfect for growing startups"
+        smb: "Designed for small and medium businesses"
+        enterprise: "Enterprise-scale solution"
+
+  personalization_variables:
+    lead_variables:
+      - "{firstName}"
+      - "{lastName}"
+      - "{company}"
+      - "{title}"
+      - "{industry}"
+      - "{companySize}"
+      - "{location}"
+    
+    dynamic_variables:
+      - "{recentActivity}"
+      - "{painPoints}"
+      - "{competitorMentions}"
+      - "{buyingSignals}"
+      - "{timingFactors}"
+      - "{mutualConnections}"
+
+performance:
+  sendTimeOptimization: true
+  openRateTarget: 0.25      # 25% open rate target
+  replyRateTarget: 0.05     # 5% reply rate target
+  clickRateTarget: 0.03     # 3% click rate target
+  unsubscribeRateThreshold: 0.02  # 2% max unsubscribe rate
+  deliverabilityMonitoring: true
+  
+  send_time_optimization:
+    enabled: true
+    timezone_aware: true
+    recipient_behavior_learning: true
+    a_b_testing: true
+    
+    default_send_times:
+      monday: ["09:00", "14:00"]
+      tuesday: ["10:00", "15:00"]
+      wednesday: ["09:30", "14:30"]
+      thursday: ["10:00", "15:00"]
+      friday: ["09:00", "13:00"]
+      saturday: []  # No weekend sends by default
+      sunday: []
+    
+    industry_optimizations:
+      technology: ["10:00", "14:00", "16:00"]
+      finance: ["08:00", "11:00", "14:00"]
+      healthcare: ["07:00", "12:00", "17:00"]
+      manufacturing: ["06:00", "12:00", "15:00"]
+  
+  a_b_testing:
+    enabled: true
+    test_percentage: 0.2  # 20% for A/B testing
+    variables_to_test:
+      - "subject_line"
+      - "send_time"
+      - "call_to_action"
+      - "email_length"
+      - "personalization_level"
+
+templates:
+  sequence_templates:
+    high_value_prospect:
+      name: "High-Value Prospect Sequence"
+      description: "For leads scoring 90+"
+      emails:
+        - template_id: "hvp_email_1"
+          delay_after_previous: 0
+          subject: "Quick question about {company}'s {painPoint}"
+        - template_id: "hvp_email_2"
+          delay_after_previous: 172800000  # 2 days
+          subject: "Thought you'd find this interesting, {firstName}"
+        - template_id: "hvp_email_3"
+          delay_after_previous: 259200000  # 3 days
+          subject: "{company} + {ourCompany}: Perfect match?"
+    
+    nurture_sequence:
+      name: "Nurture Sequence"
+      description: "For qualified leads (70-89 score)"
+      emails:
+        - template_id: "nurture_email_1"
+          delay_after_previous: 0
+        - template_id: "nurture_email_2"
+          delay_after_previous: 432000000  # 5 days
+        - template_id: "nurture_email_3"
+          delay_after_previous: 604800000  # 7 days
+    
+    discovery_support:
+      name: "Discovery Support Sequence"
+      description: "Support during discovery phase"
+      emails:
+        - template_id: "discovery_email_1"
+          delay_after_previous: 0
+        - template_id: "discovery_email_2"
+          delay_after_previous: 345600000  # 4 days
+
+response_detection:
+  responseDetection: true
+  autoStopOnReply: true
+  autoStopOnUnsubscribe: true
+  autoStopOnBounce: true
+  
+  response_classification:
+    positive_signals:
+      - "interested"
+      - "tell me more"
+      - "schedule"
+      - "call me"
+      - "demo"
+      - "pricing"
+    
+    negative_signals:
+      - "not interested"
+      - "remove me"
+      - "stop"
+      - "unsubscribe"
+      - "no thanks"
+    
+    neutral_signals:
+      - "out of office"
+      - "vacation"
+      - "maternity leave"
+      - "sabbatical"
+
+claude_personalization:
+  model: "claude-3-5-sonnet-20241022"
+  maxTokens: 2000
+  temperature: 0.4
+  streamResponses: false
+  
+  caching:
+    enabled: true
+    ttl: 1800  # 30 minutes
+  
+  prompts:
+    email_personalization: |
+      Personalize this email template for the lead based on their profile:
+      
+      Template: {emailTemplate}
+      Lead Data: {leadData}
+      Company Data: {companyData}
+      Previous Interactions: {interactionHistory}
+      
+      Create a highly personalized version that:
+      1. References specific pain points for their industry/role
+      2. Includes relevant social proof or case studies
+      3. Uses natural, conversational tone
+      4. Has a compelling subject line
+      5. Includes a clear, relevant call-to-action
+      
+    subject_line_optimization: |
+      Generate 5 compelling subject lines for this email:
+      
+      Email Content: {emailContent}
+      Lead Profile: {leadProfile}
+      Engagement History: {engagementHistory}
+      
+      Subject lines should be:
+      1. Under 50 characters
+      2. Personalized and relevant
+      3. Curiosity-driving without being clickbait
+      4. Professional tone appropriate for B2B
+      5. Avoid spam trigger words
+
+monitoring:
+  metrics:
+    - "emails_sent"
+    - "delivery_rate"
+    - "open_rate"
+    - "click_rate"
+    - "reply_rate"
+    - "unsubscribe_rate"
+    - "bounce_rate"
+    - "sequence_completion_rate"
+    - "response_time"
+    - "personalization_score"
+  
+  alerts:
+    - condition: "delivery_rate < 0.95"
+      severity: "critical"
+    - condition: "unsubscribe_rate > 0.02"
+      severity: "warning"
+    - condition: "bounce_rate > 0.05"
+      severity: "warning"
+    - condition: "open_rate < 0.15"
+      severity: "info"
+    - condition: "reply_rate < 0.02"
+      severity: "info"
+
+logging:
+  level: "info"
+  includeEmailContent: false  # Privacy
+  includePersonalData: false  # GDPR compliance
+  sensitiveFields:
+    - "email_content"
+    - "recipient_email"
+    - "personal_identifiers"
+
+security:
+  emailContentRetention: "30d"
+  personalDataRetention: "24h"
+  encryption: "aes-256"
+  accessControl: "rbac"
+  auditLogging: true
+  gdprCompliant: true
+  canSpamCompliant: true
+  
+  email_validation:
+    syntax_validation: true
+    domain_validation: true
+    mx_record_check: true
+    disposable_email_detection: true
+    role_account_detection: true
+
+compliance:
+  gdpr:
+    enabled: true
+    consent_tracking: true
+    right_to_erasure: true
+    data_portability: true
+  
+  can_spam:
+    enabled: true
+    physical_address_required: true
+    clear_sender_identification: true
+    honest_subject_lines: true
+    easy_unsubscribe: true
+  
+  casl:  # Canadian Anti-Spam Legislation
+    enabled: true
+    consent_required: true
+    clear_identification: true

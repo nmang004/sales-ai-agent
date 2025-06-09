@@ -1,0 +1,383 @@
+# Ingress configuration for Sales AI Agent Platform
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sales-ai-ingress
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: sales-ai-ingress
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: sales-ai-platform
+  annotations:
+    # NGINX Ingress Controller annotations
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    
+    # Rate limiting
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/rate-limit-connections: "20"
+    
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options DENY always;
+      add_header X-Content-Type-Options nosniff always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';" always;
+    
+    # CORS configuration
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-API-Key"
+    
+    # Backend protocol
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    
+    # Connection and timeout settings
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    
+    # Load balancing
+    nginx.ingress.kubernetes.io/load-balance: "round_robin"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$binary_remote_addr"
+    
+    # Certificate management (using cert-manager)
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/acme-challenge-type: "http01"
+
+spec:
+  tls:
+  - hosts:
+    - api.sales-ai-agent.com
+    - app.sales-ai-agent.com
+    - ws.sales-ai-agent.com
+    secretName: sales-ai-tls-secret
+  
+  rules:
+  # API Domain
+  - host: api.sales-ai-agent.com
+    http:
+      paths:
+      # Health check endpoint
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: sales-ai-server-service
+            port:
+              number: 3000
+      
+      # Authentication endpoints with stricter rate limiting
+      - path: /api/auth
+        pathType: Prefix
+        backend:
+          service:
+            name: sales-ai-server-service
+            port:
+              number: 3000
+      
+      # API v1 endpoints
+      - path: /api/v1
+        pathType: Prefix
+        backend:
+          service:
+            name: sales-ai-server-service
+            port:
+              number: 3000
+      
+      # Admin endpoints (additional security needed)
+      - path: /api/admin
+        pathType: Prefix
+        backend:
+          service:
+            name: sales-ai-server-service
+            port:
+              number: 3000
+      
+      # Metrics endpoint (internal only)
+      - path: /metrics
+        pathType: Exact
+        backend:
+          service:
+            name: sales-ai-server-service
+            port:
+              number: 3000
+      
+      # Default API catch-all
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: sales-ai-server-service
+            port:
+              number: 3000
+
+  # WebSocket Domain for real-time features
+  - host: ws.sales-ai-agent.com
+    http:
+      paths:
+      # WebSocket connections for conversation agent
+      - path: /ws
+        pathType: Prefix
+        backend:
+          service:
+            name: conversation-agent-service
+            port:
+              number: 3001
+      
+      # Health check for conversation service
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: conversation-agent-service
+            port:
+              number: 3000
+
+  # Main Application Domain
+  - host: app.sales-ai-agent.com
+    http:
+      paths:
+      # Static assets with caching
+      - path: /static
+        pathType: Prefix
+        backend:
+          service:
+            name: sales-ai-server-service
+            port:
+              number: 3000
+      
+      # API proxy from app domain
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: sales-ai-server-service
+            port:
+              number: 3000
+      
+      # Health check
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: sales-ai-server-service
+            port:
+              number: 3000
+      
+      # Main application
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: sales-ai-server-service
+            port:
+              number: 3000
+
+---
+# Ingress for monitoring services (internal only)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monitoring-ingress
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: monitoring-ingress
+    app.kubernetes.io/component: monitoring
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    
+    # IP whitelist for internal monitoring access
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+    
+    # Basic auth for additional security
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: monitoring-auth
+    nginx.ingress.kubernetes.io/auth-realm: "Sales AI Agent Monitoring"
+    
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+spec:
+  tls:
+  - hosts:
+    - monitoring.sales-ai-agent.com
+    secretName: monitoring-tls-secret
+  
+  rules:
+  - host: monitoring.sales-ai-agent.com
+    http:
+      paths:
+      # Grafana dashboard
+      - path: /grafana
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana-service
+            port:
+              number: 3000
+      
+      # Prometheus metrics
+      - path: /prometheus
+        pathType: Prefix
+        backend:
+          service:
+            name: prometheus-service
+            port:
+              number: 9090
+      
+      # Kibana logs
+      - path: /kibana
+        pathType: Prefix
+        backend:
+          service:
+            name: kibana-service
+            port:
+              number: 5601
+      
+      # Node exporter metrics
+      - path: /node-metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: node-exporter-service
+            port:
+              number: 9100
+
+---
+# Network Policy for ingress traffic control
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingress-network-policy
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: network-policy
+    app.kubernetes.io/component: security
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  
+  ingress:
+  # Allow ingress controller traffic
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 3001
+  
+  # Allow internal cluster communication
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: sales-ai-agent
+    ports:
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 3001
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 6379
+  
+  # Allow monitoring traffic
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 3000
+  
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+  
+  # Allow HTTPS outbound (for external APIs)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  
+  # Allow HTTP outbound (for external APIs)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+  
+  # Allow internal cluster communication
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: sales-ai-agent
+    ports:
+    - protocol: TCP
+      port: 3000
+    - protocol: TCP
+      port: 3001
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 6379
+
+---
+# Service for nginx ingress controller (if not using cloud load balancer)
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress-service
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/component: proxy
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app.kubernetes.io/name: nginx
+    app.kubernetes.io/component: controller
+
+---
+# Basic auth secret for monitoring access
+apiVersion: v1
+kind: Secret
+metadata:
+  name: monitoring-auth
+  namespace: sales-ai-agent
+  labels:
+    app.kubernetes.io/name: monitoring
+    app.kubernetes.io/component: auth
+type: Opaque
+data:
+  # admin:$2y$10$... (htpasswd generated hash for 'admin:password')
+  # Generate with: htpasswd -nb admin password | base64
+  auth: YWRtaW46JGFwcjEkaDlPV1Y3RHYkOWF2OWRGRzhDWXkwOE16dU0yVlkzLwo=

@@ -1,0 +1,10 @@
+# Kubernetes Namespace for Sales AI Agent Platform
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sales-ai-agent
+  labels:
+    name: sales-ai-agent
+    app.kubernetes.io/name: sales-ai-agent
+    app.kubernetes.io/part-of: sales-ai-platform
+    environment: production
